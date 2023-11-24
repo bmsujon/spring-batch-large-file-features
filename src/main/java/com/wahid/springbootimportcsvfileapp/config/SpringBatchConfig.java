@@ -3,10 +3,12 @@ package com.wahid.springbootimportcsvfileapp.config;
 import com.wahid.springbootimportcsvfileapp.entity.Contact;
 import com.wahid.springbootimportcsvfileapp.listener.StepSkipListener;
 import com.wahid.springbootimportcsvfileapp.partition.RowRangePartitioner;
+import jdk.jfr.Name;
 import lombok.AllArgsConstructor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.SkipListener;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.partition.PartitionHandler;
@@ -30,6 +32,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import java.io.File;
 
 @Configuration
+@EnableBatchProcessing
 @AllArgsConstructor
 public class SpringBatchConfig {
 
@@ -108,6 +111,7 @@ public class SpringBatchConfig {
     }
 
     @Bean
+    @Name("slaveStep")
     public Step slaveStep(JobRepository jobRepository, PlatformTransactionManager transactionManager, FlatFileItemReader<Contact> itemReader) {
         return new StepBuilder("slaveStep", jobRepository).<Contact, Contact>chunk(25000, transactionManager)
                 .reader(itemReader)
@@ -120,8 +124,9 @@ public class SpringBatchConfig {
     @Bean
     public Step masterStep(JobRepository jobRepository, PlatformTransactionManager transactionManager, FlatFileItemReader<Contact> itemReader) {
         return new StepBuilder("masterSTep", jobRepository).
-                partitioner(slaveStep(jobRepository, transactionManager, itemReader).getName(), partitioner())
+                partitioner("slaveStep", partitioner())
                 .partitionHandler(partitionHandler(jobRepository, transactionManager, itemReader))
+                .gridSize(4)
                 .build();
     }
 
@@ -144,9 +149,9 @@ public class SpringBatchConfig {
     @Bean
     public TaskExecutor taskExecutor() {
         ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
-        taskExecutor.setMaxPoolSize(10);
-        taskExecutor.setCorePoolSize(10);
-        taskExecutor.setQueueCapacity(10);
+        taskExecutor.setMaxPoolSize(5);
+        taskExecutor.setCorePoolSize(5);
+        taskExecutor.setQueueCapacity(5);
         return taskExecutor;
     }
 
